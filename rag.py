@@ -1,5 +1,4 @@
-with open("rag.py", "w") as f:
-    f.write('''"""
+"""
 rag.py
 ======
 A CPU/GPU-compatible Retrieval-Augmented Generation (RAG) pipeline built with:
@@ -15,24 +14,10 @@ Date   : 2025
 """
 
 # ==============================================================================
-# 1. DEPENDENCIES
-# ==============================================================================
-# Run this block first in your Colab notebook to install required packages.
-#
-# !pip install langchain langchain-community
-# !pip install sentence-transformers
-# !pip install faiss-gpu          # use faiss-cpu if running on CPU only
-# !pip install transformers accelerate
-# !pip install pypdf
-
-
-# ==============================================================================
-# 2. IMPORTS
+# IMPORTS
 # ==============================================================================
 
-import os
 import torch
-
 from langchain_community.document_loaders import PyPDFLoader, TextLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.embeddings import HuggingFaceEmbeddings
@@ -42,55 +27,42 @@ from langchain.chains import RetrievalQA
 from langchain.prompts import PromptTemplate
 from langchain.retrievers import ContextualCompressionRetriever
 from langchain.retrievers.document_compressors import EmbeddingsFilter
-
 from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
 
 
 # ==============================================================================
-# 3. CONFIGURATION
+# CONFIGURATION
 # ==============================================================================
 
 class Config:
     """Central configuration — change values here to customise the pipeline."""
-
-    # --- Document settings ---
-    DOCUMENT_PATH   = "your_document.pdf"   # Path to your PDF or .txt file
-    CHUNK_SIZE      = 500                    # Characters per text chunk
-    CHUNK_OVERLAP   = 50                     # Overlap between chunks
-
-    # --- Embedding model ---
-    EMBEDDING_MODEL = "BAAI/bge-large-en-v1.5"
-
-    # --- Language model ---
-    LLM_MODEL       = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-    MAX_NEW_TOKENS  = 512
-    TEMPERATURE     = 0.3
-    REPETITION_PENALTY = 1.15
-
-    # --- Retriever settings ---
-    TOP_K           = 5
-    FETCH_K         = 20
+    DOCUMENT_PATH        = "your_document.pdf"
+    CHUNK_SIZE           = 500
+    CHUNK_OVERLAP        = 50
+    EMBEDDING_MODEL      = "BAAI/bge-large-en-v1.5"
+    LLM_MODEL            = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+    MAX_NEW_TOKENS       = 512
+    TEMPERATURE          = 0.3
+    REPETITION_PENALTY   = 1.15
+    TOP_K                = 5
+    FETCH_K              = 20
     SIMILARITY_THRESHOLD = 0.5
-
-    # --- Device ---
-    DEVICE          = "cuda" if torch.cuda.is_available() else "cpu"
+    DEVICE               = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 # ==============================================================================
-# 4. DOCUMENT LOADING & CHUNKING
+# DOCUMENT LOADING & CHUNKING
 # ==============================================================================
 
 def load_and_split(file_path, chunk_size, chunk_overlap):
-    """
-    Load a PDF or plain-text document and split it into overlapping chunks.
-    """
+    """Load a PDF or text file and split it into overlapping chunks."""
     if file_path.endswith(".pdf"):
         loader = PyPDFLoader(file_path)
     else:
         loader = TextLoader(file_path)
 
     documents = loader.load()
-    print(f"[Loader] Loaded {len(documents)} page(s) from {file_path}")
+    print(f"[Loader] Loaded {len(documents)} page(s)")
 
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=chunk_size,
@@ -98,51 +70,40 @@ def load_and_split(file_path, chunk_size, chunk_overlap):
     )
     chunks = splitter.split_documents(documents)
     print(f"[Splitter] Created {len(chunks)} chunks")
-
     return chunks
 
 
 # ==============================================================================
-# 5. VECTOR STORE
+# VECTOR STORE
 # ==============================================================================
 
 def build_vectorstore(chunks, embedding_model_name, device):
-    """
-    Convert document chunks into vector embeddings and store them in FAISS.
-    """
+    """Convert chunks into embeddings and store them in FAISS."""
     print(f"[Embeddings] Loading {embedding_model_name} on {device}...")
-
     embeddings = HuggingFaceEmbeddings(
         model_name=embedding_model_name,
         model_kwargs={"device": device},
         encode_kwargs={"normalize_embeddings": True}
     )
-
     print("[FAISS] Building vector store...")
     vectorstore = FAISS.from_documents(chunks, embeddings)
     print("[FAISS] Vector store ready.")
-
     return vectorstore, embeddings
 
 
 # ==============================================================================
-# 6. LANGUAGE MODEL
+# LANGUAGE MODEL
 # ==============================================================================
 
 def load_llm(model_id, device, max_new_tokens, temperature, repetition_penalty):
-    """
-    Load TinyLlama and wrap it in a LangChain-compatible HuggingFacePipeline.
-    """
-    print(f"[LLM] Loading tokenizer for {model_id}...")
+    """Load TinyLlama and wrap it in a LangChain HuggingFacePipeline."""
+    print(f"[LLM] Loading {model_id} on {device}...")
     tokenizer = AutoTokenizer.from_pretrained(model_id)
-
-    print(f"[LLM] Loading model on {device}...")
     model = AutoModelForCausalLM.from_pretrained(
         model_id,
         torch_dtype=torch.float16 if device == "cuda" else torch.float32,
         device_map="auto"
     )
-
     text_pipeline = pipeline(
         "text-generation",
         model=model,
@@ -152,19 +113,16 @@ def load_llm(model_id, device, max_new_tokens, temperature, repetition_penalty):
         do_sample=True,
         repetition_penalty=repetition_penalty
     )
-
     print("[LLM] Model ready.")
     return HuggingFacePipeline(pipeline=text_pipeline)
 
 
 # ==============================================================================
-# 7. PROMPT TEMPLATE
+# PROMPT TEMPLATE
 # ==============================================================================
 
 def build_prompt():
-    """
-    Build a prompt template using TinyLlama ChatML format.
-    """
+    """Build a prompt template using TinyLlama ChatML format."""
     template = """<|system|>
 You are a helpful assistant. Answer using only the provided context.
 If the answer is not in the context, say "I do not have enough information."</s>
@@ -174,31 +132,23 @@ Context:
 
 Question: {question}</s>
 <|assistant|>"""
-
-    return PromptTemplate(
-        template=template,
-        input_variables=["context", "question"]
-    )
+    return PromptTemplate(template=template, input_variables=["context", "question"])
 
 
 # ==============================================================================
-# 8. RETRIEVER
+# RETRIEVER
 # ==============================================================================
 
 def build_retriever(vectorstore, embeddings, top_k, fetch_k, similarity_threshold):
-    """
-    Build an MMR retriever with a similarity filter.
-    """
+    """Build an MMR retriever with a similarity filter."""
     base_retriever = vectorstore.as_retriever(
         search_type="mmr",
         search_kwargs={"k": top_k, "fetch_k": fetch_k}
     )
-
     compressor = EmbeddingsFilter(
         embeddings=embeddings,
         similarity_threshold=similarity_threshold
     )
-
     return ContextualCompressionRetriever(
         base_compressor=compressor,
         base_retriever=base_retriever
@@ -206,13 +156,11 @@ def build_retriever(vectorstore, embeddings, top_k, fetch_k, similarity_threshol
 
 
 # ==============================================================================
-# 9. RAG CHAIN
+# RAG CHAIN
 # ==============================================================================
 
 def build_rag_chain(llm, retriever, prompt):
-    """
-    Assemble the full RAG chain.
-    """
+    """Assemble the full RAG chain."""
     return RetrievalQA.from_chain_type(
         llm=llm,
         chain_type="stuff",
@@ -223,69 +171,55 @@ def build_rag_chain(llm, retriever, prompt):
 
 
 # ==============================================================================
-# 10. QUERY INTERFACE
+# QUERY INTERFACE
 # ==============================================================================
 
 def ask(rag_chain, question):
-    """
-    Send a question to the RAG chain and print the answer with sources.
-    """
-    print(f"\\nQuestion : {question}")
+    """Ask a question and print the answer with sources."""
+    print(f"\nQuestion : {question}")
     print("-" * 60)
-
     result = rag_chain.invoke({"query": question})
-
-    print(f"Answer   : {result[\'result\']}")
-    print("\\nSources used:")
+    print(f"Answer   : {result['result']}")
+    print("\nSources used:")
     for i, doc in enumerate(result["source_documents"]):
         page = doc.metadata.get("page", "N/A")
-        snippet = doc.page_content[:150].replace("\\n", " ")
+        snippet = doc.page_content[:150].replace("\n", " ")
         print(f"  [{i+1}] Page {page}: {snippet}...")
 
 
 def chat_loop(rag_chain):
-    """
-    Start an interactive question-answering loop.
-    """
-    print("\\nRAG Chatbot is ready! Type quit to exit.\\n")
-
+    """Start an interactive question-answering loop."""
+    print("\nRAG Chatbot ready! Type 'quit' to exit.\n")
     while True:
         user_input = input("You: ").strip()
-
         if not user_input:
             continue
-
         if user_input.lower() in {"quit", "exit", "q"}:
             print("Goodbye!")
             break
-
         ask(rag_chain, user_input)
 
 
 # ==============================================================================
-# 11. MAIN
+# MAIN
 # ==============================================================================
 
 def main():
     cfg = Config()
-
     print("=" * 60)
     print("  RAG Pipeline — TinyLlama + FAISS + BGE Embeddings")
     print(f"  Device : {cfg.DEVICE}")
     print("=" * 60)
 
-    chunks = load_and_split(cfg.DOCUMENT_PATH, cfg.CHUNK_SIZE, cfg.CHUNK_OVERLAP)
+    chunks                  = load_and_split(cfg.DOCUMENT_PATH, cfg.CHUNK_SIZE, cfg.CHUNK_OVERLAP)
     vectorstore, embeddings = build_vectorstore(chunks, cfg.EMBEDDING_MODEL, cfg.DEVICE)
-    llm = load_llm(cfg.LLM_MODEL, cfg.DEVICE, cfg.MAX_NEW_TOKENS, cfg.TEMPERATURE, cfg.REPETITION_PENALTY)
-    prompt    = build_prompt()
-    retriever = build_retriever(vectorstore, embeddings, cfg.TOP_K, cfg.FETCH_K, cfg.SIMILARITY_THRESHOLD)
-    rag_chain = build_rag_chain(llm, retriever, prompt)
+    llm                     = load_llm(cfg.LLM_MODEL, cfg.DEVICE, cfg.MAX_NEW_TOKENS, cfg.TEMPERATURE, cfg.REPETITION_PENALTY)
+    prompt                  = build_prompt()
+    retriever               = build_retriever(vectorstore, embeddings, cfg.TOP_K, cfg.FETCH_K, cfg.SIMILARITY_THRESHOLD)
+    rag_chain               = build_rag_chain(llm, retriever, prompt)
 
     chat_loop(rag_chain)
 
 
 if __name__ == "__main__":
     main()
-''')
-
-print("rag.py created!")
