@@ -92,7 +92,8 @@ All settings live in the `Config` class in `rag.py`:
 ```
 rag-pipeline/
 ├── rag.py      # Full pipeline: loading, embeddings, LLM, retrieval, chat
-└── README.md   # This file
+└── README.md   
+
 ```
 
 ---
