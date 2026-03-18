@@ -1,6 +1,4 @@
 """
-rag.py
-======
 A CPU/GPU-compatible Retrieval-Augmented Generation (RAG) pipeline built with:
   - LangChain       : orchestration framework
   - FAISS           : vector similarity search
@@ -9,13 +7,9 @@ A CPU/GPU-compatible Retrieval-Augmented Generation (RAG) pipeline built with:
 
 Designed to run on Google Colab (free T4 GPU or CPU fallback).
 
-Author : <your name>
-Date   : 2025
 """
 
-# ==============================================================================
 # IMPORTS
-# ==============================================================================
 
 import torch
 from langchain_community.document_loaders import PyPDFLoader, TextLoader
@@ -29,10 +23,7 @@ from langchain.retrievers import ContextualCompressionRetriever
 from langchain.retrievers.document_compressors import EmbeddingsFilter
 from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
 
-
-# ==============================================================================
 # CONFIGURATION
-# ==============================================================================
 
 class Config:
     """Central configuration — change values here to customise the pipeline."""
@@ -50,9 +41,7 @@ class Config:
     DEVICE               = "cuda" if torch.cuda.is_available() else "cpu"
 
 
-# ==============================================================================
 # DOCUMENT LOADING & CHUNKING
-# ==============================================================================
 
 def load_and_split(file_path, chunk_size, chunk_overlap):
     """Load a PDF or text file and split it into overlapping chunks."""
@@ -73,9 +62,7 @@ def load_and_split(file_path, chunk_size, chunk_overlap):
     return chunks
 
 
-# ==============================================================================
 # VECTOR STORE
-# ==============================================================================
 
 def build_vectorstore(chunks, embedding_model_name, device):
     """Convert chunks into embeddings and store them in FAISS."""
@@ -91,9 +78,7 @@ def build_vectorstore(chunks, embedding_model_name, device):
     return vectorstore, embeddings
 
 
-# ==============================================================================
 # LANGUAGE MODEL
-# ==============================================================================
 
 def load_llm(model_id, device, max_new_tokens, temperature, repetition_penalty):
     """Load TinyLlama and wrap it in a LangChain HuggingFacePipeline."""
@@ -117,9 +102,7 @@ def load_llm(model_id, device, max_new_tokens, temperature, repetition_penalty):
     return HuggingFacePipeline(pipeline=text_pipeline)
 
 
-# ==============================================================================
 # PROMPT TEMPLATE
-# ==============================================================================
 
 def build_prompt():
     """Build a prompt template using TinyLlama ChatML format."""
@@ -135,9 +118,7 @@ Question: {question}</s>
     return PromptTemplate(template=template, input_variables=["context", "question"])
 
 
-# ==============================================================================
 # RETRIEVER
-# ==============================================================================
 
 def build_retriever(vectorstore, embeddings, top_k, fetch_k, similarity_threshold):
     """Build an MMR retriever with a similarity filter."""
@@ -155,9 +136,7 @@ def build_retriever(vectorstore, embeddings, top_k, fetch_k, similarity_threshol
     )
 
 
-# ==============================================================================
 # RAG CHAIN
-# ==============================================================================
 
 def build_rag_chain(llm, retriever, prompt):
     """Assemble the full RAG chain."""
@@ -170,9 +149,7 @@ def build_rag_chain(llm, retriever, prompt):
     )
 
 
-# ==============================================================================
 # QUERY INTERFACE
-# ==============================================================================
 
 def ask(rag_chain, question):
     """Ask a question and print the answer with sources."""
@@ -200,9 +177,7 @@ def chat_loop(rag_chain):
         ask(rag_chain, user_input)
 
 
-# ==============================================================================
 # MAIN
-# ==============================================================================
 
 def main():
     cfg = Config()
