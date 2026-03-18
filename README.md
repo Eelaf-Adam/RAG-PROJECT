@@ -15,6 +15,12 @@ RAG combines two ideas:
 This prevents the model from hallucinating by anchoring its answers in your actual documents.
 
 ---
+## Notebook
+
+You can explore the implementation here:  
+[Open in Google Colab](https://colab.research.google.com/drive/1X-vtxP0qMDdKC42wEFaKWJhoYVXfwwKv?usp=sharing)
+---
+
 
 ## Stack
 
